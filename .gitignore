@@ -1,0 +1,24 @@
+# ---- Build & packaging (desktop exe) ----
+dist/
+old_backup/
+build/
+calculator_desktop.html
+calc.ico
+计算器.spec
+launcher.py
+convert_icon.py
+
+# ---- Deploy markers ----
+.wbapp*.genie
+
+# ---- Dev / docs (internal only) ----
+preview.png
+开发日志.md
+
+# ---- Node / misc ----
+node_modules/
+*.log
+
+# ---- OS ----
+.DS_Store
+Thumbs.db

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05060d">
+<meta name="description" content="离线可用的科技感计算器 PWA，支持历史记录复制与粘贴回填">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="计算器">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>计算器</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { height:100%; }
+body {
+  font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  color:#eaf6ff;
+  display:flex; justify-content:center;
+  overflow:hidden; overscroll-behavior:none;
+  touch-action:manipulation;
+  -webkit-user-select:none; user-select:none;
+  background-color:#05060d;
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, #16245a 0%, #0a0e1f 45%, #04050c 100%),
+    linear-gradient(rgba(0,229,255,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,.045) 1px, transparent 1px);
+  background-size:auto, 26px 26px, 26px 26px;
+}
+#app {
+  width:100%; max-width:430px;
+  height:100vh; height:100dvh;
+  display:flex; flex-direction:column;
+  background:linear-gradient(180deg, rgba(16,22,46,.72), rgba(8,10,22,.82));
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-left:1px solid rgba(0,229,255,.14);
+  border-right:1px solid rgba(0,229,255,.14);
+  padding-top:env(safe-area-inset-top);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.titlebar {
+  display:flex; align-items:center; gap:10px;
+  padding:12px 14px; flex-shrink:0;
+  background:linear-gradient(180deg, rgba(0,229,255,.07), transparent);
+  border-bottom:1px solid rgba(0,229,255,.10);
+}
+.titlebar .name { font-size:15px; font-weight:600; letter-spacing:.5px; color:#dff6ff; text-shadow:0 0 10px rgba(0,229,255,.4); }
+.titlebar .mode { font-size:13px; color:#7fe9ff; }
+.titlebar .spacer { flex:1; }
+.icon-btn { background:none; border:none; color:#bfefff; font-size:18px; padding:6px 8px; cursor:pointer; border-radius:8px; transition:.15s; }
+.icon-btn:active, .icon-btn:hover { background:rgba(0,229,255,.12); }
+
+/* 计算区域：等式 + 结果 同一行横排 */
+.display { padding:6px 18px 10px; flex-shrink:0;
+  background:linear-gradient(180deg, rgba(0,229,255,.05), transparent);
+  border-bottom:1px solid rgba(255,255,255,.05); }
+.mem-ind { font-size:12px; color:#ff5fa2; height:15px; text-align:right; padding-right:2px; text-shadow:0 0 8px rgba(255,95,162,.6); }
+.display-line {
+  display:flex; align-items:baseline; justify-content:flex-end; gap:8px;
+  min-height:58px; overflow:hidden; text-align:right;
+}
+.expression {
+  flex:0 1 auto; min-width:0;
+  font-size:20px; color:#7fb6d6;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.value {
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-size:46px; font-weight:500; color:#eafcff; line-height:1.2;
+  flex-shrink:0; white-space:nowrap;
+  text-shadow:0 0 14px rgba(0,229,255,.45);
+  outline:none; cursor:text;
+}
+.value:focus { text-shadow:0 0 18px rgba(0,229,255,.7); }
+
+.memory-row { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:6px 8px 2px; flex-shrink:0; }
+.memory-row button {
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10);
+  color:#9fe9ff; font-size:12px; padding:7px 0; border-radius:9px; cursor:pointer; font-family:inherit;
+  transition:.15s; backdrop-filter:blur(4px);
+}
+.memory-row button:active { background:rgba(0,229,255,.20); border-color:rgba(0,229,255,.5); }
+.memory-row button.paste-btn { color:#ffd166; border-color:rgba(255,209,102,.35); }
+
+/* 比例分配：2026-10-12 陛下选定「键盘放大1.3倍」，历史区份额降为与上版键盘同份额(10)，键盘份额13；键盘≈上版×1.3，历史区因此小于键盘区 */
+.history {
+  flex: 10 1 0; min-height:120px; overflow-y:auto;
+  margin:8px 8px 4px; border-radius:12px;
+  background:rgba(10,16,36,.55);
+  border:1px solid rgba(0,229,255,.14);
+  backdrop-filter:blur(6px);
+}
+.history-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:8px 12px; color:#8fd6ff; font-size:12px; letter-spacing:.5px;
+  position:sticky; top:0; background:rgba(10,16,36,.92); z-index:1;
+  border-bottom:1px solid rgba(0,229,255,.10);
+}
+.history-header button { background:none; border:none; color:#7fb6d6; font-size:12px; cursor:pointer; padding:2px 6px; }
+.h-item { display:flex; align-items:center; gap:8px; padding:7px 12px;
+  border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer; transition:.12s; }
+.h-item:active { background:rgba(0,229,255,.10); }
+.h-text { flex:1; min-width:0; display:flex; align-items:baseline; gap:6px; overflow:hidden; white-space:nowrap; }
+.h-expr { font-size:13px; color:#8fb8cf; overflow:hidden; text-overflow:ellipsis; flex:0 1 auto; min-width:0; }
+.h-res { font-size:16px; color:#5ff0ff; font-weight:600; flex-shrink:0; text-shadow:0 0 8px rgba(95,240,255,.45); }
+.h-copy { background:rgba(0,229,255,.10); border:1px solid rgba(0,229,255,.45);
+  color:#9feaff; font-size:11px; padding:4px 9px; border-radius:8px; margin-left:4px; cursor:pointer; flex-shrink:0;
+  transition:.15s; }
+.h-copy:active { background:rgba(0,229,255,.30); box-shadow:0 0 12px rgba(0,229,255,.55); }
+.history-empty { text-align:center; color:#5a7a8c; font-size:13px; padding:16px 0; }
+
+.keypad {
+  flex: 13 1 0; min-height:0;
+  display:grid;   grid-template-columns:repeat(4,1fr);
+  grid-template-rows:repeat(7,minmax(0,1fr));
+  gap:6px; padding:8px;
+}
+.key {
+  position:relative; border:1px solid rgba(255,255,255,.10); color:#eaf6ff;
+  font-size:21px; font-weight:500; height:100%; max-height:62px;
+  align-self:center; width:100%;
+  border-radius:12px; cursor:pointer; font-family:inherit;
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  transition:transform .12s, box-shadow .18s, background .18s, border-color .18s, color .18s;
+  backdrop-filter:blur(4px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
+}
+.key:active { transform:scale(.95); }
+.key.fn { color:#9fe9ff; }
+.key.num { color:#eafcff; }
+.key.op { color:#ff7ac6; border-color:rgba(255,122,198,.30);
+  background:linear-gradient(180deg, rgba(255,122,198,.12), rgba(255,122,198,.02)); }
+.key.eq {
+  color:#04121a; font-weight:700;
+  background:linear-gradient(180deg,#00e5ff,#00b4d8);
+  border-color:rgba(0,229,255,.6);
+  box-shadow:0 0 16px rgba(0,229,255,.5);
+}
+.key.eq:active { box-shadow:0 0 28px rgba(0,229,255,.85); }
+
+/* 按键高亮：按下闪一下，确认是否按对键 */
+.key.pressed, .memory-row button.pressed {
+  background:linear-gradient(180deg, rgba(0,229,255,.50), rgba(0,229,255,.20)) !important;
+  border-color:rgba(0,229,255,.95) !important;
+  color:#04121a !important;
+  box-shadow:0 0 0 2px rgba(0,229,255,.7), 0 0 24px rgba(0,229,255,.75) !important;
+  transform:scale(.94);
+}
+
+#toast {
+  position:fixed; left:50%; bottom:90px;
+  transform:translateX(-50%) translateY(20px);
+  background:rgba(0,229,255,.92); color:#04121a; font-size:14px; font-weight:600;
+  padding:9px 18px; border-radius:22px;
+  opacity:0; pointer-events:none; transition:all .25s; z-index:99;
+  box-shadow:0 0 20px rgba(0,229,255,.55);
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* 粘贴弹窗 */
+#pasteModal {
+  position:fixed; inset:0; z-index:100;
+  background:rgba(3,5,12,.6); backdrop-filter:blur(4px);
+  display:none; align-items:center; justify-content:center;
+}
+#pasteModal.show { display:flex; }
+.modal-card {
+  width:min(86vw,340px); border-radius:16px; padding:18px 16px 14px;
+  background:linear-gradient(180deg, rgba(20,28,58,.96), rgba(10,14,30,.96));
+  border:1px solid rgba(0,229,255,.35);
+  box-shadow:0 0 40px rgba(0,229,255,.25);
+}
+.modal-title { font-size:15px; font-weight:600; color:#dff6ff; margin-bottom:12px; text-align:center; }
+#pasteInput {
+  width:100%; padding:12px; font-size:18px; text-align:center;
+  color:#eafcff; background:rgba(0,229,255,.06);
+  border:1px solid rgba(0,229,255,.35); border-radius:10px; outline:none;
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  -webkit-user-select:text; user-select:text;
+}
+#pasteInput:focus { border-color:rgba(0,229,255,.8); box-shadow:0 0 12px rgba(0,229,255,.35); }
+.modal-hint { font-size:12px; color:#6f93a8; text-align:center; margin-top:8px; }
+.modal-btns { display:flex; gap:10px; margin-top:14px; }
+.modal-btns button {
+  flex:1; padding:10px 0; border-radius:10px; font-size:14px; cursor:pointer; font-family:inherit;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:#bfefff;
+}
+.modal-btns #pasteConfirm {
+  background:linear-gradient(180deg,#00e5ff,#00b4d8); color:#04121a; font-weight:700;
+  border-color:rgba(0,229,255,.6);
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="titlebar">
+    <button class="icon-btn">☰</button>
+    <span class="name">计算器</span>
+    <span class="mode">标准</span>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="histToggle" title="显示/隐藏历史">🕐</button>
+  </header>
+
+  <section class="display">
+    <div class="mem-ind" id="memInd"></div>
+    <div class="display-line">
+      <span class="expression" id="expression"></span>
+      <span class="value" id="value" tabindex="0">0</span>
+    </div>
+  </section>
+
+  <section class="memory-row">
+    <button data-mem="MC">MC</button>
+    <button data-mem="MR">MR</button>
+    <button data-mem="M-">M−</button>
+    <button data-mem="M+">M+</button>
+    <button data-mem="MS">MS</button>
+    <button class="paste-btn" data-act="paste">粘贴</button>
+  </section>
+
+  <section class="history" id="historyPanel">
+    <div class="history-header"><span>历史记录</span><button id="clearHistory">清空</button></div>
+    <div id="historyList"></div>
+    <div class="history-empty" id="historyEmpty">暂无历史记录</div>
+  </section>
+
+  <section class="keypad" id="keypad">
+    <button class="key fn" data-k="percent">%</button>
+    <button class="key fn" data-k="sqrt">√</button>
+    <button class="key fn" data-k="sqr">x²</button>
+    <button class="key fn" data-k="inv">1/x</button>
+
+    <button class="key fn" data-k="ce">CE</button>
+    <button class="key fn" data-k="c">C</button>
+    <button class="key fn" data-k="back">⌫</button>
+    <button class="key op" data-k="/">÷</button>
+
+    <button class="key num" data-k="7">7</button>
+    <button class="key num" data-k="8">8</button>
+    <button class="key num" data-k="9">9</button>
+    <button class="key op" data-k="*">×</button>
+
+    <button class="key num" data-k="4">4</button>
+    <button class="key num" data-k="5">5</button>
+    <button class="key num" data-k="6">6</button>
+    <button class="key op" data-k="-">−</button>
+
+    <button class="key num" data-k="1">1</button>
+    <button class="key num" data-k="2">2</button>
+    <button class="key num" data-k="3">3</button>
+    <button class="key op" data-k="+">+</button>
+
+    <button class="key fn" data-k="neg">±</button>
+    <button class="key num" data-k="0">0</button>
+    <button class="key num" data-k=".">.</button>
+    <button class="key eq" data-k="=">=</button>
+
+    <button class="key fn" data-k="(">(</button>
+    <button class="key fn" data-k=")">)</button>
+  </section>
+</div>
+
+<div id="pasteModal">
+  <div class="modal-card">
+    <div class="modal-title">粘贴数字</div>
+    <input id="pasteInput" type="text" inputmode="decimal" autocomplete="off" placeholder="长按此处选「粘贴」">
+    <div class="modal-hint">长按输入框选「粘贴」，或直接键入数字后点确认</div>
+    <div class="modal-btns">
+      <button id="pasteCancel">取消</button>
+      <button id="pasteConfirm">放入计算器</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
